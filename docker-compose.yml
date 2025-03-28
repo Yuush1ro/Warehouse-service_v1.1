@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16
+    container_name: warehouse-db
+    restart: always
+    environment:
+      POSTGRES_DB: warehouse
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d warehouse"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - warehouse-net 
+
+  migrate:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://user:password@db:5432/warehouse?sslmode=disable", "up"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    container_name: warehouse-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: warehouse-db
+      DB_PORT: 5432
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: warehouse
+    networks:
+      - warehouse-net 
+
+volumes:
+  db-data:
+networks:
+  warehouse-net:
+    driver: bridge

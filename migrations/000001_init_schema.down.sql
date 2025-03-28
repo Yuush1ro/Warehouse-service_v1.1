@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS analytics;
+DROP TABLE IF EXISTS inventory;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS warehouses;
