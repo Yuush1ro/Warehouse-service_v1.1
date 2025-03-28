@@ -64,7 +64,7 @@ func (h *ProductHandler) GetAllHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *ProductHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id := vars["id"] // Оставляем id как строку (UUID)
+	id := vars["id"]
 
 	if id == "" {
 		h.Logger.Error("Missing product ID")
