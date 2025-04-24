@@ -1,0 +1,20 @@
+# Исключить Git и среду разработки
+.git
+.idea
+.vscode
+
+# Конфиги и токены
+.env
+*.log
+
+# Кэш и сборка
+bin/
+build/
+tmp/
+*.exe
+
+# Документация
+*.md
+LICENSE
+
+server.exe

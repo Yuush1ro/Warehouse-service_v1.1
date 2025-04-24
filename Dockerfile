@@ -1,3 +1,4 @@
+# ---------- STAGE 1: Build ----------
 # Используем официальное изображение Go для сборки
 FROM golang:1.24 AS builder
 
@@ -17,11 +18,15 @@ RUN go build -o warehouse-service ./cmd/server
 # Устанавливаем migrate (теперь в builder!)
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
+# ---------- STAGE 2: Runtime ----------
 # Создаём финальный образ
 FROM debian:bookworm-slim
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
+
+# Установим корневые сертификаты
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Копируем собранный бинарник из предыдущего контейнера
 COPY --from=builder /app/warehouse-service .

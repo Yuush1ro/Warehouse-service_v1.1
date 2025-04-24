@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/warehouse-service/internal/models"
 )
 
@@ -17,7 +18,7 @@ type InventoryRepository interface {
 	SetDiscount(ctx context.Context, productIDs []uuid.UUID, warehouseID uuid.UUID, discount float64) error
 	GetByWarehouse(ctx context.Context, warehouseID uuid.UUID, limit, offset int) ([]models.InventoryWithNames, error)
 	GetProductInWarehouse(ctx context.Context, productID, warehouseID uuid.UUID) (*models.Inventory, error)
-	CalculateTotal(ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) (float64, error)
+	CalculateTotal(ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) (decimal.Decimal, error)
 	Purchase(ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) error
 	GetProductPrice(ctx context.Context, warehouseID uuid.UUID, productID uuid.UUID) (float64, error)
 	GetProductDiscount(ctx context.Context, warehouseID, productID uuid.UUID) (float64, error)
@@ -48,7 +49,8 @@ func (r *InventoryRepositoryImpl) Create(ctx context.Context, inventory models.I
 }
 
 // 2. Обновление количества товара (поступление на склад)
-func (r *InventoryRepositoryImpl) UpdateQuantity(ctx context.Context, productID, warehouseID uuid.UUID, quantity int) error {
+func (r *InventoryRepositoryImpl) UpdateQuantity(
+	ctx context.Context, productID, warehouseID uuid.UUID, quantity int) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE inventory SET quantity = quantity + $1 WHERE product_id = $2 AND warehouse_id = $3
 	`, quantity, productID, warehouseID)
@@ -56,7 +58,8 @@ func (r *InventoryRepositoryImpl) UpdateQuantity(ctx context.Context, productID,
 }
 
 // 3. Установка скидки на список товаров
-func (r *InventoryRepositoryImpl) SetDiscount(ctx context.Context, productIDs []uuid.UUID, warehouseID uuid.UUID, discount float64) error {
+func (r *InventoryRepositoryImpl) SetDiscount(
+	ctx context.Context, productIDs []uuid.UUID, warehouseID uuid.UUID, discount float64) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE inventory SET discount = $1 WHERE product_id = ANY($2) AND warehouse_id = $3
 	`, discount, productIDs, warehouseID)
@@ -64,7 +67,8 @@ func (r *InventoryRepositoryImpl) SetDiscount(ctx context.Context, productIDs []
 }
 
 // 4. Получение списка товаров на складе (с пагинацией)
-func (r *InventoryRepositoryImpl) GetByWarehouse(ctx context.Context, warehouseID uuid.UUID, limit, offset int) ([]models.InventoryWithNames, error) {
+func (r *InventoryRepositoryImpl) GetByWarehouse(
+	ctx context.Context, warehouseID uuid.UUID, limit, offset int) ([]models.InventoryWithNames, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT 
 			i.id, i.product_id, i.warehouse_id, i.quantity, i.price, i.discount,
@@ -92,7 +96,8 @@ func (r *InventoryRepositoryImpl) GetByWarehouse(ctx context.Context, warehouseI
 }
 
 // 5. Получение информации о товаре на складе
-func (r *InventoryRepositoryImpl) GetProductInWarehouse(ctx context.Context, productID, warehouseID uuid.UUID) (*models.Inventory, error) {
+func (r *InventoryRepositoryImpl) GetProductInWarehouse(
+	ctx context.Context, productID, warehouseID uuid.UUID) (*models.Inventory, error) {
 	var inv models.Inventory
 	err := r.db.QueryRow(ctx, `
 		SELECT id, product_id, warehouse_id, quantity, price, discount FROM inventory
@@ -105,23 +110,27 @@ func (r *InventoryRepositoryImpl) GetProductInWarehouse(ctx context.Context, pro
 }
 
 // 6. Подсчёт стоимости товаров
-func (r *InventoryRepositoryImpl) CalculateTotal(ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) (float64, error) {
-	var total float64
+func (r *InventoryRepositoryImpl) CalculateTotal(
+	ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) (decimal.Decimal, error) {
+
+	var total decimal.Decimal
 	for productID, quantity := range items {
-		var price, discount float64
+		var price, discount decimal.Decimal
 		err := r.db.QueryRow(ctx, `
 			SELECT price, discount FROM inventory WHERE product_id = $1 AND warehouse_id = $2
 		`, productID, warehouseID).Scan(&price, &discount)
 		if err != nil {
-			return 0, err
+			return decimal.Zero, err
 		}
-		total += float64(quantity) * (price * (1 - discount/100))
+		total = total.Add(price.Mul(discount.Add(decimal.NewFromInt(100)).Div(decimal.NewFromInt(100))).Mul(decimal.NewFromInt(int64(quantity))))
 	}
 	return total, nil
 }
 
 // 7. Покупка товаров (уменьшение количества)
-func (r *InventoryRepositoryImpl) Purchase(ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) error {
+func (r *InventoryRepositoryImpl) Purchase(
+	ctx context.Context, warehouseID uuid.UUID, items map[uuid.UUID]int) error {
+
 	for productID, quantity := range items {
 		result, err := r.db.Exec(ctx, `
 			UPDATE inventory SET quantity = quantity - $1 WHERE product_id = $2 AND warehouse_id = $3 AND quantity >= $1

@@ -33,12 +33,17 @@ func (h *AnalyticsHandler) GetWarehouseAnalyticsHandler(w http.ResponseWriter, r
 
 	analytics, err := h.Repo.GetWarehouseAnalytics(r.Context(), warehouseID)
 	if err != nil {
+		h.Logger.Error("Failed to fetch analytics", zap.Error(err), zap.String("warehouseId", warehouseID.String()))
 		http.Error(w, "Failed to fetch analytics", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(analytics)
+	if err := json.NewEncoder(w).Encode(analytics); err != nil {
+		h.Logger.Error("Failed to encode analytics response", zap.Error(err))
+		http.Error(w, "Failed to encode analytics response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // 2. Получение топ-10 складов по выручке
@@ -58,7 +63,11 @@ func (h *AnalyticsHandler) GetTopWarehousesHandler(w http.ResponseWriter, r *htt
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(warehouses)
+	if err := json.NewEncoder(w).Encode(warehouses); err != nil {
+		h.Logger.Error("Failed to encode top warehouses response", zap.Error(err))
+		http.Error(w, "Failed to encode top warehouses response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *AnalyticsHandler) DeleteAnalyticsHandler(w http.ResponseWriter, r *http.Request) {

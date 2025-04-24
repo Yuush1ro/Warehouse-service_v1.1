@@ -47,7 +47,11 @@ func (h *ProductHandler) CreateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "created", "id": product.ID})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "created", "id": product.ID}); err != nil {
+		h.Logger.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *ProductHandler) GetAllHandler(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +63,11 @@ func (h *ProductHandler) GetAllHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(products)
+	if err := json.NewEncoder(w).Encode(products); err != nil {
+		h.Logger.Error("Failed to encode products response", zap.Error(err))
+		http.Error(w, "Failed to encode products response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (h *ProductHandler) UpdateHandler(w http.ResponseWriter, r *http.Request) {

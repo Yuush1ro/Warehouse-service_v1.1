@@ -5,12 +5,6 @@ CREATE TABLE warehouses (
     name TEXT Default 'Warehouse'
 );
 
-CREATE TABLE IF NOT EXISTS warehouses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    address TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT now()
-);
-
 CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -22,14 +16,15 @@ CREATE TABLE products (
 
 CREATE TABLE inventory (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    warehouse_id UUID REFERENCES warehouses(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
     quantity INT NOT NULL CHECK (quantity >= 0),
-    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
-    discount DECIMAL(5,2) CHECK (discount >= 0 AND discount <= 100)
+    price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
+    discount NUMERIC(5, 2) DEFAULT 0 CHECK (discount >= 0 AND discount <= 100),
+    UNIQUE (product_id, warehouse_id)
 );
 
-CREATE TABLE IF NOT EXISTS analytics (
+CREATE TABLE analytics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     warehouse_id UUID NOT NULL REFERENCES warehouses(id) ON DELETE CASCADE,
     product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,

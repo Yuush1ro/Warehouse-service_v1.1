@@ -36,12 +36,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      DB_HOST: warehouse-db
-      DB_PORT: 5432
-      DB_USER: user
-      DB_PASSWORD: password
-      DB_NAME: warehouse
+    env_file:
+      - .env
     networks:
       - warehouse-net 
 

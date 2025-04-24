@@ -7,17 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/warehouse-service/internal/models"
 	"go.uber.org/zap"
 )
 
 type AnalyticsRepository interface {
-	RecordSale(ctx context.Context, warehouseID, productID uuid.UUID, quantity int, totalSum float64) error
+	RecordSale(ctx context.Context, warehouseID, productID uuid.UUID, quantity int, totalSum decimal.Decimal) error
 	GetWarehouseAnalytics(ctx context.Context, warehouseID uuid.UUID) ([]models.Analytics, error)
 	GetTopWarehouses(ctx context.Context, limit int) ([]struct {
-		WarehouseID uuid.UUID `json:"warehouse_id"`
-		Address     string    `json:"address"`
-		TotalSum    float64   `json:"total_sum"`
+		WarehouseID uuid.UUID       `json:"warehouse_id"`
+		Address     string          `json:"address"`
+		TotalSum    decimal.Decimal `json:"total_sum"`
 	}, error)
 	DeleteAnalytics(ctx context.Context, warehouseID, productID uuid.UUID) error
 }
@@ -35,21 +36,21 @@ func NewAnalyticsRepository(db *pgxpool.Pool, logger *zap.Logger) *AnalyticsRepo
 }
 
 // 1. Запись продажи в аналитику
-func (r *AnalyticsRepositoryImpl) RecordSale(ctx context.Context, warehouseID, productID uuid.UUID, quantity int, totalSum float64) error {
+func (r *AnalyticsRepositoryImpl) RecordSale(ctx context.Context, warehouseID, productID uuid.UUID, quantity int, totalSum decimal.Decimal) error {
 	r.Logger.Info("Recording sale",
 		zap.String("warehouseID", warehouseID.String()),
 		zap.String("productID", productID.String()),
 		zap.Int("quantity", quantity),
-		zap.Float64("totalPrice", totalSum))
+		zap.String("totalPrice", totalSum.String()))
 
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO analytics (warehouse_id, product_id, sold_quantity, total_sum) 
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (warehouse_id, product_id) 
-		DO UPDATE SET 
-			sold_quantity = analytics.sold_quantity + EXCLUDED.sold_quantity, 
-			total_sum = analytics.total_sum + EXCLUDED.total_sum
-	`, warehouseID, productID, quantity, totalSum)
+        INSERT INTO analytics (warehouse_id, product_id, sold_quantity, total_sum) 
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (warehouse_id, product_id) 
+        DO UPDATE SET 
+            sold_quantity = analytics.sold_quantity + EXCLUDED.sold_quantity, 
+            total_sum = analytics.total_sum + EXCLUDED.total_sum
+    `, warehouseID, productID, quantity, totalSum)
 
 	if err != nil {
 		r.Logger.Error("Failed to execute RecordSale query", zap.Error(err))
@@ -58,7 +59,7 @@ func (r *AnalyticsRepositoryImpl) RecordSale(ctx context.Context, warehouseID, p
 			zap.String("warehouseID", warehouseID.String()),
 			zap.String("productID", productID.String()),
 			zap.Int("quantity", quantity),
-			zap.Float64("totalSum", totalSum))
+			zap.String("totalSum", totalSum.String()))
 	}
 	return err
 }
@@ -92,9 +93,9 @@ func (r *AnalyticsRepositoryImpl) GetWarehouseAnalytics(ctx context.Context, war
 
 // 3. Топ-10 складов по выручке
 func (r *AnalyticsRepositoryImpl) GetTopWarehouses(ctx context.Context, limit int) ([]struct {
-	WarehouseID uuid.UUID `json:"warehouse_id"`
-	Address     string    `json:"address"`
-	TotalSum    float64   `json:"total_sum"`
+	WarehouseID uuid.UUID       `json:"warehouse_id"`
+	Address     string          `json:"address"`
+	TotalSum    decimal.Decimal `json:"total_sum"`
 }, error) {
 	r.Logger.Info("Executing query to fetch top warehouses by revenue", zap.Int("limit", limit))
 
@@ -113,15 +114,15 @@ func (r *AnalyticsRepositoryImpl) GetTopWarehouses(ctx context.Context, limit in
 	defer rows.Close()
 
 	var results []struct {
-		WarehouseID uuid.UUID `json:"warehouse_id"`
-		Address     string    `json:"address"`
-		TotalSum    float64   `json:"total_sum"`
+		WarehouseID uuid.UUID       `json:"warehouse_id"`
+		Address     string          `json:"address"`
+		TotalSum    decimal.Decimal `json:"total_sum"`
 	}
 	for rows.Next() {
 		var res struct {
-			WarehouseID uuid.UUID `json:"warehouse_id"`
-			Address     string    `json:"address"`
-			TotalSum    float64   `json:"total_sum"`
+			WarehouseID uuid.UUID       `json:"warehouse_id"`
+			Address     string          `json:"address"`
+			TotalSum    decimal.Decimal `json:"total_sum"`
 		}
 		if err := rows.Scan(&res.WarehouseID, &res.Address, &res.TotalSum); err != nil {
 			r.Logger.Error("Error scanning row for top warehouses", zap.Error(err))
